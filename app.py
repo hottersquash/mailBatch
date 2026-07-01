@@ -119,8 +119,6 @@ class AppAPI:
         self._stop_send = False
         self._config_snapshot: dict | None = None
 
-    # ── Config ────────────────────────────────────────────────────────────
-
     def load_config(self) -> dict:
         if not LAST_CONFIG_FILE.is_file():
             return {"_has_saved_config": False}
@@ -133,7 +131,6 @@ class AppAPI:
             return {"error": str(exc), "_has_saved_config": False}
 
     def sync_config(self, config: dict) -> None:
-        """Store latest UI state in memory (no disk I/O). Called from JS on change."""
         self._config_snapshot = config
 
     def save_config(self, config: dict) -> dict:
@@ -173,12 +170,9 @@ class AppAPI:
             return {"error": str(exc)}
 
     def reset_session(self) -> None:
-        """Clear in-memory session state without touching config files on disk."""
         self._excel_data = None
         self._excel_path = ""
         self._config_snapshot = None
-
-    # ── SMTP presets ──────────────────────────────────────────────────────
 
     def get_smtp_presets(self) -> list:
         return [{"id": pid, "label": label} for pid, label in preset_combo_items()]
@@ -212,8 +206,6 @@ class AppAPI:
 
     def open_url(self, url: str) -> None:
         webbrowser.open(url)
-
-    # ── Excel ─────────────────────────────────────────────────────────────
 
     def choose_excel(self) -> dict:
         win = webview.windows[0]
@@ -258,8 +250,6 @@ class AppAPI:
             return {"error": result["error"]}
         return None
 
-    # ── Attachments ───────────────────────────────────────────────────────
-
     def add_attachments(self) -> list:
         win = webview.windows[0]
         paths = win.create_file_dialog(
@@ -268,8 +258,6 @@ class AppAPI:
             file_types=("All files (*.*)",),
         )
         return list(paths) if paths else []
-
-    # ── Template ──────────────────────────────────────────────────────────
 
     def load_template_file(self) -> dict:
         win = webview.windows[0]
@@ -307,8 +295,6 @@ class AppAPI:
         Path(paths[0]).write_text(html_content, encoding="utf-8")
         return paths[0]
 
-    # ── Preview ───────────────────────────────────────────────────────────
-
     def preview_email(self, data: dict) -> dict:
         load_err = self._ensure_excel_loaded(data.get("excel_path", ""))
         if load_err:
@@ -327,7 +313,6 @@ class AppAPI:
             )
         except Exception as exc:  # noqa: BLE001
             return {"error": str(exc)}
-
         return {
             "ok": True,
             "row_index": row_index,
@@ -339,8 +324,6 @@ class AppAPI:
             "body": preview.body,
             "attachments": [Path(p).name for p in preview.attachment_paths],
         }
-
-    # ── Validate ──────────────────────────────────────────────────────────
 
     def validate_send(self, data: dict) -> dict:
         load_err = self._ensure_excel_loaded(data.get("excel_path", ""))
@@ -360,8 +343,6 @@ class AppAPI:
             "warnings": [i.message for i in issues if i.level == "warning"],
         }
 
-    # ── Send ──────────────────────────────────────────────────────────────
-
     def start_send(self, data: dict) -> dict:
         if self._send_worker is not None and self._send_worker.is_alive():
             return {"error": "发送中，请等待"}
@@ -369,7 +350,6 @@ class AppAPI:
         if load_err:
             return load_err
         assert self._excel_data is not None
-
         smtp_config = SmtpConfig(
             host=data["smtp_host"],
             port=int(data.get("smtp_port", 587)),
@@ -380,14 +360,12 @@ class AppAPI:
             use_ssl=bool(data.get("use_ssl", False)),
             send_interval=float(data.get("send_interval", 1.0)),
         )
-
         excel_data = self._excel_data
         template = data["template"]
         subject = data["subject"]
         attachments = data.get("attachment_paths", [])
         email_column = data.get("email_column") or None
         cc_column = data.get("cc_column") or None
-
         self._stop_send = False
 
         def _progress(current: int, total: int, result) -> None:
@@ -401,13 +379,13 @@ class AppAPI:
                 webview.windows[0].evaluate_js(
                     f"onProgress({current},{total},{json.dumps(r)})"
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
         def _log(text: str) -> None:
             try:
                 webview.windows[0].evaluate_js(f"appendLog({json.dumps(text)})")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
         def _run() -> None:
@@ -426,9 +404,8 @@ class AppAPI:
                     out = APP_DIR / f"发送失败_{ts}.xlsx"
                     try:
                         failed_path = str(export_failed_send_results(excel_data, summary, out))
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         pass
-
                 s = {
                     "success_count": summary.success_count,
                     "failure_count": summary.failure_count,
@@ -450,19 +427,13 @@ class AppAPI:
         self._stop_send = True
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Entry point
-# ─────────────────────────────────────────────────────────────────────────────
-
 def main() -> int:
     html_path = _app_html_path()
     if not html_path.exists():
         print(f"ERROR: app.html not found at {html_path}", file=sys.stderr)
         return 1
-
     html_content = html_path.read_text(encoding="utf-8")
     api = AppAPI()
-
     win = webview.create_window(
         "MailBatch 批量邮件工具",
         html=html_content,
@@ -493,13 +464,11 @@ def main() -> int:
         return True
 
     win.events.closing += _on_closing
-
     icon_path = APP_DIR / "assets" / "mailbatch.ico"
     if getattr(sys, "frozen", False):
         meipass_icon = Path(sys._MEIPASS) / "assets" / "mailbatch.ico"  # type: ignore[attr-defined]
         if meipass_icon.exists():
             icon_path = meipass_icon
-
     webview.start(icon=str(icon_path) if icon_path.exists() else None)
     return 0
 
