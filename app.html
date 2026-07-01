@@ -9,6 +9,19 @@ html,body{height:100%;overflow:hidden}
 body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;font-size:13px;background:#f0f2f5;color:#333;display:flex;flex-direction:column}
 #topbar{background:#1677ff;color:#fff;height:42px;padding:0 14px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-start;user-select:none;gap:6px}
 .tb-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
+#main{flex:1;display:flex;min-height:0;overflow:hidden}
+.col{display:flex;flex-direction:column;overflow:hidden}
+#left-col{width:256px;min-width:180px;background:#fff;border-right:1px solid #e0e0e0;overflow-y:auto}
+#center-col{flex:1;min-width:0;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column}
+#right-col{width:330px;min-width:260px;background:#fff;overflow-y:auto}
+.panel{padding:9px 11px;border-bottom:1px solid #f0f0f0}
+.fr{display:flex;align-items:center;margin-bottom:5px;gap:5px}
+.fl{width:68px;flex-shrink:0;color:#777;font-size:12px}
+.fc{flex:1;border:1px solid #d9d9d9;border-radius:4px;padding:3px 7px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.btn{border:1px solid #d9d9d9;border-radius:4px;padding:3px 9px;cursor:pointer;font-size:12px;background:#fff;color:#333;white-space:nowrap}
+.btn.primary{background:#1677ff;color:#fff;border-color:#1677ff}
+#editor-area{flex:1;overflow-y:auto;padding:14px;background:#f5f5f5}
+#editor{background:#fff;min-height:100%;padding:18px 22px;outline:none;line-height:1.75;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 </style>
 </head>
 <body>
@@ -18,14 +31,37 @@ body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;font-size:13px;ba
   <button class="tb-btn" onclick="cfgImport()">导入配置</button>
   <button class="tb-btn" onclick="cfgClear()">清空配置</button>
 </div>
-<div id="main">PLACEHOLDER_PARTIAL</div>
+<div id="main">
+  <div class="col" id="left-col"><div class="panel"><div class="ph"><span>Excel 名单</span></div></div></div>
+  <div class="col" id="center-col"><div id="editor-area"><div id="editor" contenteditable="true"></div></div></div>
+  <div class="col" id="right-col"><div class="panel"><div class="ph"><span>发送</span></div></div></div>
+</div>
+<div id="log-panel"><div id="log-body"></div></div>
 <script>
 "use strict";
 function $(id){ return document.getElementById(id); }
-async function cfgSave(){ await pywebview.api.save_config({}); }
-async function cfgExport(){ await pywebview.api.export_config({}); }
-async function cfgImport(){ await pywebview.api.import_config(); }
-async function cfgClear(){ await pywebview.api.reset_session(); }
+let _headers=[],_attaches=[],_selAttach=-1,_smtpLock=false,_tplPath='',_colorMode='f',_savedRange=null,_selImg=null,_rHandles=[],_rowCount=0,_excelFullPath='',_phTarget='editor',_subjectSel={start:0,end:0},_previewDlg=null,_syncTimer=null;
+function getExcelPath(){ return _excelFullPath; }
+function setExcelPath(path,warn){ _excelFullPath=path||''; const el=$('excel-path'); if(!path){el.textContent='(未选择)';} }
+function modal(title,body,isYesNo){ return new Promise(resolve=>{ const bg=document.createElement('div'); bg.className='modal-bg'; document.body.appendChild(bg); resolve(true); }); }
+function info(msg){ return modal('提示',msg,false); }
+function warn(msg){ return modal('警告',msg,false); }
+function err(msg){ return modal('错误',msg,false); }
+function confirm2(msg){ return modal('确认',msg,true); }
+function appendLog(text){ const d=$('log-body'); if(!d)return; const line=document.createElement('div'); line.textContent=text; d.appendChild(line); }
+window.addEventListener('load', async ()=>{ await loadPresets(); const cfg=await pywebview.api.load_config(); if(cfg&&cfg._has_saved_config) applyConfig(cfg); setupAutoSync(); });
+function scheduleSync(){ clearTimeout(_syncTimer); _syncTimer=setTimeout(()=>{ try{ pywebview.api.sync_config(collectConfig()); }catch(e){} },600); }
+function setupAutoSync(){ scheduleSync(); }
+function collectConfig(){ return { excel_path:getExcelPath(), template_path:_tplPath, template_text:$('editor').innerHTML, attachment_paths:_attaches.slice(), subject:$('subject')?$('subject').value:'', email_column:$('email-col')?$('email-col').value:'', cc_column:$('cc-col')?$('cc-col').value:'', smtp_host:$('smtp-host')?$('smtp-host').value:'', smtp_port:parseInt($('smtp-port')?$('smtp-port').value:587)||587, sender_email:$('smtp-email')?$('smtp-email').value:'', smtp_user:$('smtp-email')?$('smtp-email').value:'', smtp_password:$('smtp-pwd')?$('smtp-pwd').value:'', mail_from:$('smtp-email')?$('smtp-email').value:'', use_tls:$('smtp-enc')&&$('smtp-enc').value==='STARTTLS (587)', use_ssl:$('smtp-enc')&&$('smtp-enc').value==='SSL (465)', smtp_preset:getPresetId(), send_interval:parseFloat($('smtp-iv')?$('smtp-iv').value:1)||1, last_dialog_dir:'' }; }
+function applyConfig(cfg){ if(!cfg)return; scheduleSync(); }
+async function cfgSave(){ const r=await pywebview.api.save_config(collectConfig()); if(r&&r.ok) await info('配置保存成功'); }
+async function cfgExport(){ await pywebview.api.export_config(collectConfig()); }
+async function cfgImport(){ const cfg=await pywebview.api.import_config(); if(cfg&&!cfg.cancelled&&!cfg.error) applyConfig(cfg); }
+async function cfgClear(){ if(!await confirm2('是否继续？')) return; _excelFullPath=''; try{ await pywebview.api.reset_session(); }catch(e){} await info('已清空界面配置'); }
+async function loadPresets(){ const ps=await pywebview.api.get_smtp_presets(); const sel=$('smtp-preset'); if(!sel)return; sel.innerHTML=''; if(ps) ps.forEach(p=>{ const o=document.createElement('option'); o.value=p.label; o.dataset.id=p.id; o.textContent=p.label; sel.appendChild(o); }); }
+function getPresetId(){ const sel=$('smtp-preset'); if(!sel)return 'custom'; const o=sel.options[sel.selectedIndex]; return o?o.dataset.id:'custom'; }
+function setPresetId(id){ const sel=$('smtp-preset'); if(!sel)return; for(let o of sel.options) if(o.dataset.id===id){sel.value=o.value;return;} }
+async function onPreset(){} async function autoDetect(){} function onManualSmtp(){} async function openPwdHelp(){} async function chooseExcel(){} function applyExcel(r){} async function addAttach(){} function renderAttaches(){} function rmAttach(){} function mvAttach(dir){} async function loadTpl(){} async function saveTpl(){} async function clearTpl(){} function toggleTbar(){} function fmt(cmd,val){ document.execCommand(cmd,false,val||null); } function applyFont(){} function applySize(){} function pickColor(mode){} function applyColor(){} function insertPH(col,target){} function buildPhPanel(){} function buildSubjectPhPanel(){} function togglePhPanel(){} function toggleSubjectPhPanel(ev){} function insertFieldPH(){} function toggleLog(){} async function doPreview(){} async function doValidate(){ return true; } async function doSend(){} async function doCancel(){} function buildData(){ return collectConfig(); } function setSending(s){} function onProgress(cur,tot,result){} function onSendFinished(s){} function onSendFailed(msg){}
 </script>
 </body>
 </html>
