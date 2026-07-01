@@ -3,6 +3,29 @@
 <head>
 <meta charset="utf-8">
 <title>MailBatch 批量邮件工具</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;font-size:13px;background:#f0f2f5;color:#333;display:flex;flex-direction:column}
+#topbar{background:#1677ff;color:#fff;height:42px;padding:0 14px;flex-shrink:0;display:flex;align-items:center;justify-content:flex-start;user-select:none;gap:6px}
+.tb-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
+</style>
 </head>
-<body><div id="topbar">MailBatch FULL PLACEHOLDER TEST</div></body>
+<body>
+<div id="topbar">
+  <button class="tb-btn" onclick="cfgSave()">保存配置</button>
+  <button class="tb-btn" onclick="cfgExport()">导出配置</button>
+  <button class="tb-btn" onclick="cfgImport()">导入配置</button>
+  <button class="tb-btn" onclick="cfgClear()">清空配置</button>
+</div>
+<div id="main">PLACEHOLDER_PARTIAL</div>
+<script>
+"use strict";
+function $(id){ return document.getElementById(id); }
+async function cfgSave(){ await pywebview.api.save_config({}); }
+async function cfgExport(){ await pywebview.api.export_config({}); }
+async function cfgImport(){ await pywebview.api.import_config(); }
+async function cfgClear(){ await pywebview.api.reset_session(); }
+</script>
+</body>
 </html>
