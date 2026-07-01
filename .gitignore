@@ -5,4 +5,30 @@ __pycache__/
 last_config.json
 build/
 dist/
+scripts/
 *.spec
+
+# MCP / push temp artifacts
+_*
+_tmp*
+batch_*.json
+*.b64
+
+# Local sample / user data (do not commit)
+module1.txt
+*.xlsx
+发送失败_*.xlsx
+
+# Obsolete
+editor.html
+
+# Local upload scratch images
+-[0-9]*.png
+[0-9]*.png
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+Thumbs.db
+Desktop.ini

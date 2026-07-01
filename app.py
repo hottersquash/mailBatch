@@ -144,7 +144,7 @@ class AppAPI:
         except Exception as exc:  # noqa: BLE001
             return {"error": str(exc)}
 
-    # ── SMTP presets ──────────────────────────────────────────────────────
+    def export_config(self, config: dict) -> dict:
         win = webview.windows[0]
         paths = win.create_file_dialog(
             webview.SAVE_DIALOG,
