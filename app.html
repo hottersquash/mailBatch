@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MailBatch 批量邮件工具</title>
+<style>
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;font-size:13px;
+     background:#f0f2f5;color:#333;display:flex;flex-direction:column}
+
+/* ── Top bar ────────────────────────────────────────────────────────────── */
+#topbar{background:#1677ff;color:#fff;height:42px;padding:0 14px;flex-shrink:0;
+        display:flex;align-items:center;justify-content:flex-start;user-select:none;gap:6px}
+#topbar .title{font-size:15px;font-weight:600}
+.tb-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);
+        border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12px}
+.tb-btn:hover{background:rgba(255,255,255,.28)}
+
+/* ── Three-column main layout ───────────────────────────────────────────── */
+#main{flex:1;display:flex;min-height:0;overflow:hidden}
+.col{display:flex;flex-direction:column;overflow:hidden}
+#left-col{width:256px;min-width:180px;background:#fff;border-right:1px solid #e0e0e0;overflow-y:auto}
+#center-col{flex:1;min-width:0;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column}
+#right-col{width:330px;min-width:260px;background:#fff;overflow-y:auto}
+
+/* ── Panel blocks ───────────────────────────────────────────────────────── */
+.panel{padding:9px 11px;border-bottom:1px solid #f0f0f0}
+.panel.grow{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{font-weight:600;font-size:11px;color:#666;margin-bottom:7px;
+    display:flex;align-items:center;gap:5px}
+.ph span{flex:1}
+
+/* ── Form ────────────────────────────────────────────────────────────────── */
+.fr{display:flex;align-items:center;margin-bottom:5px;gap:5px}
+.fl{width:68px;flex-shrink:0;color:#777;font-size:12px}
+.fc{flex:1;border:1px solid #d9d9d9;border-radius:4px;padding:3px 7px;
+    font-size:13px;font-family:inherit;outline:none;background:#fff}
+.fc:focus{border-color:#1677ff}
+.fc:disabled{background:#f5f5f5;color:#999}
+.fc-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+         background:#fff;color:#333;cursor:default;line-height:22px}
+.fc-path.warn{color:#d48806;border-color:#ffc53d;background:#fffbe6}
+select.fc{padding:2px 5px;cursor:pointer}
+.fc[type=number]{width:75px;flex:none}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn{border:1px solid #d9d9d9;border-radius:4px;padding:3px 9px;cursor:pointer;
+     font-size:12px;background:#fff;color:#333;white-space:nowrap}
+.btn:hover{background:#f0f0f0}
+.btn.primary{background:#1677ff;color:#fff;border-color:#1677ff}
+.btn.primary:hover{background:#0958d9}
+.btn.sm{padding:1px 6px;font-size:11px}
+
+/* ── Fields & attach lists ───────────────────────────────────────────────── */
+#fields-list{flex:1;min-height:0;width:100%;border:1px solid #ddd;
+             font-size:12px;font-family:inherit;overflow-y:auto}
+#attach-list{border:1px solid #ddd;max-height:100px;overflow-y:auto;min-height:32px}
+.ai{padding:2px 7px;font-size:11px;display:flex;align-items:center;
+    border-bottom:1px solid #f5f5f5;cursor:pointer}
+.ai:hover,.ai.sel{background:#e6f4ff}
+.ai span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Editor: toolbar toggle ─────────────────────────────────────────────── */
+#tbar-wrap{flex-shrink:0;background:#fafafa;border-bottom:1px solid #eee}
+#tbar-toggle{padding:5px 11px;cursor:pointer;user-select:none;font-size:12px;
+             color:#555;display:flex;align-items:center;gap:4px}
+#tbar-toggle:hover{background:#f0f0f0}
+#toolbar{display:none;padding:5px 8px;flex-wrap:wrap;gap:3px;align-items:center;background:#fafafa}
+.tbtn{background:none;border:1px solid transparent;border-radius:3px;
+      padding:1px 5px;cursor:pointer;font-size:12px;color:#333;min-width:24px;line-height:18px}
+.tbtn:hover{background:#e8e8e8;border-color:#ccc}
+.tbtn.on{background:#d0e4ff;border-color:#6aadff}
+.tsel{border:1px solid #ccc;border-radius:3px;padding:1px 4px;font-size:12px;
+      background:#fff;cursor:pointer}
+.tsep{width:1px;height:18px;background:#ddd;margin:0 2px}
+.sw{width:11px;height:3px;border-radius:1px;margin-top:1px;pointer-events:none}
+input[type=color]{width:0;height:0;opacity:0;position:absolute}
+
+/* ── Editor content area ────────────────────────────────────────────────── */
+#editor-area{flex:1;overflow-y:auto;padding:14px;background:#f5f5f5}
+#editor{background:#fff;min-height:100%;padding:18px 22px;outline:none;
+        line-height:1.75;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+#editor img{cursor:pointer;display:inline-block;vertical-align:top}
+#editor img.sel{outline:2px solid #1677ff}
+
+/* ── Image resize ────────────────────────────────────────────────────────── */
+.rh{position:fixed;width:8px;height:8px;background:#fff;
+    border:2px solid #1677ff;border-radius:2px;z-index:9999;
+    pointer-events:auto}
+.rh[data-p=nw]{cursor:nw-resize} .rh[data-p=ne]{cursor:ne-resize}
+.rh[data-p=sw]{cursor:sw-resize} .rh[data-p=se]{cursor:se-resize}
+.rh[data-p=n]{cursor:n-resize}   .rh[data-p=s]{cursor:s-resize}
+.rh[data-p=e]{cursor:e-resize}   .rh[data-p=w]{cursor:w-resize}
+
+/* ── Placeholder panel ───────────────────────────────────────────────────── */
+#ph-panel{display:none;position:absolute;background:#fff;border:1px solid #ccc;
+          border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:200;
+          max-height:180px;overflow-y:auto;min-width:140px}
+.ph-panel-subject{display:none;position:absolute;right:0;top:100%;margin-top:2px;
+          background:#fff;border:1px solid #ccc;border-radius:4px;
+          box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:200;
+          max-height:180px;overflow-y:auto;min-width:140px}
+.phi{padding:5px 11px;cursor:pointer;font-size:12px}
+.phi:hover{background:#f0f7ff}
+
+/* ── Send section ────────────────────────────────────────────────────────── */
+.agrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:7px 0}
+.abtn{border:1px solid #d9d9d9;border-radius:4px;padding:9px;cursor:pointer;
+      font-size:13px;font-weight:600;background:#fff;color:#333;transition:.15s}
+.abtn:hover{background:#f5f5f5}
+.abtn.go{background:#1677ff;color:#fff;border-color:#1677ff}
+.abtn.go:hover{background:#0958d9}
+.abtn:disabled{opacity:.45;cursor:default}
+.prog-wrap{margin-top:7px}
+.prog-lbl{font-size:11px;font-weight:600;color:#555;margin-bottom:3px}
+.prog-out{background:#f0f0f0;border-radius:4px;height:16px;overflow:hidden;position:relative}
+.prog-in{height:100%;background:#1677ff;border-radius:4px;width:0%;transition:width .3s}
+.prog-txt{position:absolute;inset:0;text-align:center;font-size:10px;line-height:16px;color:#555}
+
+/* ── Log panel ───────────────────────────────────────────────────────────── */
+#log-panel{flex-shrink:0;border-top:1px solid #e0e0e0;background:#fff}
+#log-toggle{padding:4px 12px;cursor:pointer;user-select:none;font-size:12px;
+            color:#666;display:flex;align-items:center;gap:4px}
+#log-toggle:hover{background:#f5f5f5}
+#log-body{display:none;height:110px;overflow-y:auto;padding:5px 11px;
+          font-size:11px;font-family:monospace;background:#1e1e1e;color:#ccc}
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+.badge{font-size:12px;font-weight:700;color:#1677ff;background:#e6f4ff;
+       border-radius:10px;padding:1px 8px}
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10000;
+          display:flex;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:8px;padding:22px 28px;min-width:320px;
+           max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:12px}
+.modal-body{font-size:13px;line-height:1.6;margin-bottom:16px;white-space:pre-wrap}
+.modal-btns{display:flex;justify-content:flex-end;gap:8px}
+.preview-box{background:#fff;border-radius:8px;padding:0;min-width:560px;max-width:860px;width:72vw;
+             max-height:88vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.preview-shell{display:flex;align-items:center;gap:10px;max-width:94vw}
+.preview-arrow{width:44px;height:88px;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;
+               background:rgba(255,255,255,.92);color:#1677ff;font-size:32px;line-height:1;
+               box-shadow:0 2px 12px rgba(0,0,0,.18);transition:background .15s}
+.preview-arrow:hover:not(:disabled){background:#fff}
+.preview-arrow:disabled{opacity:.35;cursor:default;color:#999}
+.preview-hd{padding:16px 20px 10px;border-bottom:1px solid #eee;flex-shrink:0}
+.preview-hd h3{font-size:15px;font-weight:600;margin-bottom:8px}
+.preview-meta{width:100%;border-collapse:collapse;font-size:13px}
+.preview-meta td{padding:3px 8px;vertical-align:top}
+.preview-meta td:first-child{color:#888;width:72px;white-space:nowrap}
+.preview-body-wrap{flex:1;overflow-y:auto;padding:16px 20px;background:#f5f5f5;min-height:200px}
+.preview-body{background:#fff;padding:18px 22px;box-shadow:0 1px 3px rgba(0,0,0,.08);line-height:1.75}
+.preview-ft{padding:10px 20px;border-top:1px solid #eee;display:flex;
+           justify-content:flex-end;align-items:center;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <button class="tb-btn" onclick="cfgSave()">保存配置</button>
+  <button class="tb-btn" onclick="cfgExport()">导出配置</button>
+  <button class="tb-btn" onclick="cfgImport()">导入配置</button>
+  <button class="tb-btn" onclick="cfgClear()">清空配置</button>
+</div>
+
+<!-- ── Main 3-col ────────────────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- LEFT ─────────────────────────────────────────────────────────────── -->
+  <div class="col" id="left-col">
+
+    <div class="panel">
+      <div class="ph"><span>Excel 名单</span></div>
+      <div class="fr">
+        <span class="fl">文件</span>
+        <span class="fc fc-path" id="excel-path" title="">(未选择)</span>
+        <button class="btn" id="btn-choose-excel" onclick="chooseExcel()">选择...</button>
+      </div>
+      <div class="fr">
+        <span class="fl">Sheet</span>
+        <span id="sheet-lbl" style="color:#888;font-size:12px">-</span>
+      </div>
+      <div class="fr">
+        <span class="fl">收件人列</span>
+        <select class="fc" id="email-col"></select>
+      </div>
+      <div class="fr">
+        <span class="fl">抄送列</span>
+        <select class="fc" id="cc-col"></select>
+      </div>
+      <div class="fr">
+        <span class="fl">待发送</span>
+        <span class="badge" id="pending">0 条</span>
+      </div>
+    </div>
+
+    <div class="panel grow">
+      <div class="ph"><span>字段列表（双击插入占位符到主题或正文）</span></div>
+      <select id="fields-list" size="8" ondblclick="insertFieldPH()"></select>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <span>附件</span>
+        <button class="btn sm" onclick="addAttach()">添加...</button>
+        <button class="btn sm" onclick="rmAttach()">移除</button>
+        <button class="btn sm" onclick="mvAttach(-1)">↑</button>
+        <button class="btn sm" onclick="mvAttach(1)">↓</button>
+      </div>
+      <div id="attach-list"></div>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- CENTER ───────────────────────────────────────────────────────────── -->
+  <div class="col" id="center-col">
+
+    <div class="panel" style="flex-shrink:0">
+      <div class="ph">
+        <span>邮件模板（富文本）</span>
+        <button class="btn sm" onclick="loadTpl()">载入文件...</button>
+        <button class="btn sm" onclick="saveTpl()">保存</button>
+        <button class="btn sm" onclick="clearTpl()">清空</button>
+      </div>
+    </div>
+
+    <!-- Collapsible toolbar -->
+    <div id="tbar-wrap">
+      <div id="tbar-toggle" onclick="toggleTbar()">
+        <span id="tbar-arrow">▶</span> 工具栏
+      </div>
+      <div id="toolbar">
+        <select class="tsel" id="sel-font" title="字体" onchange="applyFont()">
+          <option value="">默认字体</option>
+          <option value="Microsoft YaHei">微软雅黑</option>
+          <option value="SimSun">宋体</option>
+          <option value="SimHei">黑体</option>
+          <option value="Arial">Arial</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Courier New">Courier New</option>
+        </select>
+        <select class="tsel" id="sel-size" title="字号" onchange="applySize()">
+          <option value="">字号</option>
+          <option value="1">8pt</option>
+          <option value="2">10pt</option>
+          <option value="3">12pt</option>
+          <option value="4">14pt</option>
+          <option value="5">18pt</option>
+          <option value="6">24pt</option>
+          <option value="7">36pt</option>
+        </select>
+        <div class="tsep"></div>
+        <button class="tbtn" id="btn-b" title="粗体(Ctrl+B)" onclick="fmt('bold')"><b>B</b></button>
+        <button class="tbtn" id="btn-i" title="斜体(Ctrl+I)" onclick="fmt('italic')"><i>I</i></button>
+        <button class="tbtn" id="btn-u" title="下划线(Ctrl+U)" onclick="fmt('underline')"><u>U</u></button>
+        <button class="tbtn" onclick="fmt('strikeThrough')"><s>S</s></button>
+        <div class="tsep"></div>
+        <button class="tbtn" title="左对齐" onclick="fmt('justifyLeft')">⬅≡</button>
+        <button class="tbtn" title="居中" onclick="fmt('justifyCenter')">≡</button>
+        <button class="tbtn" title="右对齐" onclick="fmt('justifyRight')">≡➡</button>
+        <div class="tsep"></div>
+        <button class="tbtn" title="无序列表" onclick="fmt('insertUnorderedList')">• —</button>
+        <button class="tbtn" title="有序列表" onclick="fmt('insertOrderedList')">1.—</button>
+        <div class="tsep"></div>
+        <button class="tbtn" title="文字颜色" onclick="pickColor('f')">
+          A<div class="sw" id="sw-f" style="background:#000"></div></button>
+        <button class="tbtn" title="背景颜色" onclick="pickColor('b')">
+          A<div class="sw" id="sw-b" style="background:#ff0"></div></button>
+        <input type="color" id="color-inp" onchange="applyColor()">
+        <div class="tsep"></div>
+        <button class="tbtn" title="插入图片" onclick="$('img-inp').click()">🖼</button>
+        <input type="file" id="img-inp" accept="image/*" style="display:none" onchange="insertImg(this)">
+        <button class="tbtn" title="插入链接" onclick="insertLink()">🔗</button>
+        <div class="tsep"></div>
+        <div style="position:relative">
+          <button class="tbtn" id="btn-ph" title="插入占位符"
+                  style="background:#fff3cd;border-color:#ffc107" onclick="togglePhPanel()">
+            {{}}</button>
+          <div id="ph-panel"></div>
+        </div>
+        <div class="tsep"></div>
+        <button class="tbtn" title="撤销" onclick="fmt('undo')">↩</button>
+        <button class="tbtn" title="重做" onclick="fmt('redo')">↪</button>
+        <button class="tbtn" title="清除格式" onclick="fmt('removeFormat')">T✕</button>
+      </div>
+    </div>
+
+    <!-- Contenteditable editor -->
+    <div id="editor-area">
+      <div id="editor" contenteditable="true" spellcheck="false"></div>
+    </div>
+
+  </div><!-- /center -->
+
+  <!-- RIGHT ────────────────────────────────────────────────────────────── -->
+  <div class="col" id="right-col">
+
+    <div class="panel">
+      <div class="ph"><span>发送</span></div>
+      <div class="fr" style="margin-bottom:9px">
+        <span class="fl">邮件主题</span>
+        <div style="flex:1;display:flex;gap:4px;position:relative">
+          <input class="fc" id="subject" placeholder="支持 {{列名}} 引用 Excel 列" style="flex:1">
+          <button class="btn sm" id="btn-subject-ph" title="插入列占位符" onclick="toggleSubjectPhPanel(event)"
+                  style="background:#fff3cd;border-color:#ffc107">{{}}</button>
+          <div id="subject-ph-panel" class="ph-panel-subject"></div>
+        </div>
+      </div>
+      <div class="agrid">
+        <button class="abtn" id="btn-preview" onclick="doPreview()">预览</button>
+        <button class="abtn" id="btn-validate" onclick="doValidate()">校验</button>
+        <button class="abtn go" id="btn-send" onclick="doSend()">发送</button>
+        <button class="abtn" id="btn-cancel" disabled onclick="doCancel()">取消发送</button>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-lbl">发送进度</div>
+        <div class="prog-out">
+          <div class="prog-in" id="prog-bar"></div>
+          <div class="prog-txt" id="prog-txt">0 / 0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span>SMTP 配置</span></div>
+      <div class="fr">
+        <span class="fl">发件邮箱</span>
+        <input class="fc" id="smtp-email" onblur="autoDetect()">
+      </div>
+      <div class="fr">
+        <span class="fl">邮箱预设</span>
+        <select class="fc" id="smtp-preset" onchange="onPreset()"></select>
+      </div>
+      <div class="fr">
+        <span class="fl">密码/授权码</span>
+        <input class="fc" id="smtp-pwd" type="password">
+        <button class="btn sm" onclick="openPwdHelp()">?</button>
+      </div>
+      <div class="fr">
+        <span class="fl">SMTP 主机</span>
+        <input class="fc" id="smtp-host" onblur="onManualSmtp()">
+      </div>
+      <div class="fr">
+        <span class="fl">端口</span>
+        <input class="fc" id="smtp-port" type="number" min="1" max="65535" value="587" onblur="onManualSmtp()">
+      </div>
+      <div class="fr">
+        <span class="fl">加密</span>
+        <select class="fc" id="smtp-enc" onchange="onManualSmtp()">
+          <option>STARTTLS (587)</option>
+          <option>SSL (465)</option>
+          <option>无</option>
+        </select>
+      </div>
+      <div class="fr">
+        <span class="fl">发送间隔</span>
+        <input class="fc" id="smtp-iv" type="number" min="0" max="60" step="0.5" value="1.0">
+        <span style="color:#888;font-size:11px;margin-left:3px">秒</span>
+      </div>
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /main -->
+
+<!-- ── Log panel ─────────────────────────────────────────────────────────── -->
+<div id="log-panel">
+  <div id="log-toggle" onclick="toggleLog()">
+    <span id="log-arr">▶</span>&nbsp;<span id="log-lbl">展开日志</span>
+  </div>
+  <div id="log-body"></div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<script>
+"use strict";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+
+function getExcelPath(){ return _excelFullPath; }
+function setExcelPath(path, warn){
+  _excelFullPath = path || '';
+  const el = $('excel-path');
+  if(!path){
+    el.textContent='(未选择)'; el.title=''; el.classList.remove('warn');
+  } else {
+    el.textContent = path.split(/[\\/]/).pop();
+    el.title = path;
+    el.classList.toggle('warn', !!warn);
+  }
+}
+
+function modal(title, body, isYesNo){
+  return new Promise(resolve => {
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal-box">
+      <div class="modal-title">${title}</div>
+      <div class="modal-body">${body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>
+      <div class="modal-btns" id="_mbts"></div></div>`;
+    document.body.appendChild(bg);
+    const btns = bg.querySelector('#_mbts');
+    if(isYesNo){
+      const y=document.createElement('button');y.className='btn primary';y.textContent='是';
+      y.onclick=()=>{bg.remove();resolve(true)};
+      const n=document.createElement('button');n.className='btn';n.textContent='否';
+      n.onclick=()=>{bg.remove();resolve(false)};
+      btns.appendChild(n);btns.appendChild(y);
+    } else {
+      const ok=document.createElement('button');ok.className='btn primary';ok.textContent='确定';
+      ok.onclick=()=>{bg.remove();resolve(true)};
+      btns.appendChild(ok);
+    }
+  });
+}
+function info(msg){ return modal('提示',msg,false); }
+function warn(msg){ return modal('警告',msg,false); }
+function err(msg){  return modal('错误',msg,false); }
+function confirm2(msg){ return modal('确认',msg,true); }
+
+function appendLog(text){
+  const d=$('log-body');
+  const t=new Date().toLocaleTimeString('zh-CN');
+  const line=document.createElement('div');
+  line.textContent=`${t} ${text}`;
+  d.appendChild(line);
+  d.scrollTop=d.scrollHeight;
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let _headers=[],_attaches=[],_selAttach=-1;
+let _smtpLock=false,_tplPath='';
+let _colorMode='f',_savedRange=null;
+let _selImg=null,_rHandles=[];
+let _rowCount=0;
+let _excelFullPath='';
+let _phTarget='editor';
+let _subjectSel={start:0,end:0};
+let _previewDlg=null;
+let _syncTimer=null;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', async ()=>{
+  await loadPresets();
+  const cfg = await pywebview.api.load_config();
+  if(cfg && cfg.error){
+    await err('加载上次配置失败：'+cfg.error);
+  } else if(cfg && cfg._has_saved_config){
+    applyConfig(cfg);
+    appendLog('已加载上次保存的配置');
+  }
+  setupAutoSync();
+});
+
+// ── Config sync (avoid evaluate_js on close) ────────────────────────────────
+function scheduleSync(){
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(()=>{
+    try{ pywebview.api.sync_config(collectConfig()); }catch(e){}
+  }, 600);
+}
+
+function setupAutoSync(){
+  const ids = ['subject','smtp-email','smtp-host','smtp-port','smtp-pwd','smtp-iv','email-col','cc-col'];
+  ids.forEach(id=>{
+    const el=$(id);
+    if(el) el.addEventListener('input', scheduleSync);
+    if(el) el.addEventListener('change', scheduleSync);
+  });
+  ['smtp-enc','smtp-preset'].forEach(id=>{
+    const el=$(id);
+    if(el) el.addEventListener('change', scheduleSync);
+  });
+  $('subject').addEventListener('focus', ()=>{ _phTarget='subject'; captureSubjectSelection(); });
+  $('subject').addEventListener('keyup', captureSubjectSelection);
+  $('subject').addEventListener('click', captureSubjectSelection);
+  $('subject').addEventListener('mouseup', captureSubjectSelection);
+  $('subject').addEventListener('select', captureSubjectSelection);
+  $('subject').addEventListener('input', ()=>{ captureSubjectSelection(); scheduleSync(); });
+  const btnSubjectPh = $('btn-subject-ph');
+  if(btnSubjectPh){
+    btnSubjectPh.addEventListener('mousedown', e=>{
+      captureSubjectSelection();
+      _phTarget='subject';
+      e.preventDefault();
+    });
+  }
+  const fieldsList = $('fields-list');
+  if(fieldsList){
+    fieldsList.addEventListener('mousedown', ()=>{
+      if(document.activeElement===$('subject')) captureSubjectSelection();
+    });
+  }
+  const ed = $('editor');
+  ed.addEventListener('focus', ()=>{ _phTarget='editor'; });
+  ed.addEventListener('input', scheduleSync);
+  scheduleSync();
+}
+
+function captureSubjectSelection(){
+  const el=$('subject');
+  if(document.activeElement!==el) return;
+  const start=el.selectionStart??el.value.length;
+  const end=el.selectionEnd??start;
+  _subjectSel.start=start;
+  _subjectSel.end=end;
+}
+
+function collectConfig(){
+  return {
+    excel_path: getExcelPath(),
+    template_path: _tplPath,
+    template_text: $('editor').innerHTML,
+    attachment_paths: _attaches.slice(),
+    subject: $('subject').value,
+    email_column: $('email-col').value,
+    cc_column: $('cc-col').value,
+    smtp_host: $('smtp-host').value,
+    smtp_port: parseInt($('smtp-port').value)||587,
+    sender_email: $('smtp-email').value,
+    smtp_user: $('smtp-email').value,
+    smtp_password: $('smtp-pwd').value,
+    mail_from: $('smtp-email').value,
+    use_tls: $('smtp-enc').value==='STARTTLS (587)',
+    use_ssl: $('smtp-enc').value==='SSL (465)',
+    smtp_preset: getPresetId(),
+    send_interval: parseFloat($('smtp-iv').value)||1.0,
+    last_dialog_dir:'',
+  };
+}
+
+function applyConfig(cfg){
+  if(!cfg) return;
+  $('subject').value = cfg.subject||'';
+  _subjectSel.start=$('subject').value.length;
+  _subjectSel.end=_subjectSel.start;
+  $('smtp-host').value = cfg.smtp_host||'';
+  $('smtp-port').value = cfg.smtp_port||587;
+  $('smtp-email').value = cfg.sender_email||cfg.smtp_user||'';
+  $('smtp-pwd').value = cfg.smtp_password||'';
+  $('smtp-iv').value = cfg.send_interval||1.0;
+  const encVal = cfg.use_ssl?'SSL (465)':(cfg.use_tls?'STARTTLS (587)':'无');
+  $('smtp-enc').value = encVal;
+  if(cfg.smtp_preset) setPresetId(cfg.smtp_preset);
+  if(cfg.template_text){ $('editor').innerHTML=cfg.template_text; }
+  _tplPath = cfg.template_path||'';
+  if(cfg.attachment_paths && cfg.attachment_paths.length){
+    _attaches=cfg.attachment_paths.slice(); renderAttaches();
+  }
+  if(cfg.excel_path){
+    setExcelPath(cfg.excel_path);
+    pywebview.api.reload_excel(cfg.excel_path).then(r=>{
+      if(r&&!r.error){
+        applyExcel(r);
+        if(cfg.email_column) $('email-col').value=cfg.email_column;
+        if(cfg.cc_column) $('cc-col').value=cfg.cc_column;
+      } else {
+        setExcelPath(cfg.excel_path, true);
+        appendLog('[警告] Excel 文件无法加载：'+(r&&r.error||cfg.excel_path)+'，请点击「选择...」重新指定');
+      }
+    });
+  }
+  scheduleSync();
+}
+
+async function cfgSave(){
+  const r=await pywebview.api.save_config(collectConfig());
+  if(r&&r.ok){
+    appendLog('配置已保存');
+    await info('配置保存成功');
+  } else {
+    await err('配置保存失败：'+(r&&r.error||'未知错误'));
+  }
+}
+async function cfgExport(){
+  const r=await pywebview.api.export_config(collectConfig());
+  if(!r||r.cancelled) return;
+  if(r.ok){
+    appendLog('配置已导出：'+r.path);
+    await info('配置导出成功\n\n'+r.path);
+  } else {
+    await err('配置导出失败：'+(r.error||'未知错误'));
+  }
+}
+async function cfgImport(){
+  const cfg=await pywebview.api.import_config();
+  if(!cfg||cfg.cancelled) return;
+  if(cfg.error){ await err('配置导入失败：'+cfg.error); return; }
+  applyConfig(cfg);
+  appendLog('配置已导入');
+  await info('配置导入成功');
+}
+async function cfgClear(){
+  if(!await confirm2('将清空当前界面上的 Excel、模板、附件、SMTP、主题等输入信息。\n\n是否继续？')) return;
+  setExcelPath(''); $('sheet-lbl').textContent='-';
+  $('email-col').innerHTML=''; $('cc-col').innerHTML='<option value="">(无)</option>';
+  $('pending').textContent='0 条'; $('fields-list').innerHTML='';
+  _headers=[]; $('editor').innerHTML=''; _tplPath='';
+  _attaches=[]; renderAttaches(); $('subject').value='';
+  $('smtp-host').value=''; $('smtp-port').value=587;
+  $('smtp-email').value=''; $('smtp-pwd').value='';
+  $('smtp-iv').value=1.0; $('smtp-enc').value='STARTTLS (587)';
+  $('prog-bar').style.width='0%'; $('prog-txt').textContent='0 / 0';
+  _rowCount=0;
+  _excelFullPath='';
+  try{ await pywebview.api.reset_session(); }catch(e){}
+  appendLog('已清空界面配置');
+  await info('已清空界面配置');
+}
+
+// ── SMTP Presets ──────────────────────────────────────────────────────────────
+async function loadPresets(){
+  const ps=await pywebview.api.get_smtp_presets();
+  const sel=$('smtp-preset'); sel.innerHTML='';
+  if(ps) ps.forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.label; o.dataset.id=p.id; o.textContent=p.label;
+    sel.appendChild(o);
+  });
+}
+function getPresetId(){
+  const sel=$('smtp-preset');
+  const o=sel.options[sel.selectedIndex];
+  return o?o.dataset.id:'custom';
+}
+function setPresetId(id){
+  const sel=$('smtp-preset');
+  for(let o of sel.options) if(o.dataset.id===id){sel.value=o.value;return;}
+}
+async function onPreset(){
+  if(_smtpLock) return;
+  const pid=getPresetId();
+  if(pid==='auto') await autoDetect();
+  else if(pid!=='custom'){
+    const d=await pywebview.api.get_smtp_preset_details(pid);
+    if(d){ _smtpLock=true;
+      $('smtp-host').value=d.host; $('smtp-port').value=d.port;
+      $('smtp-enc').value=d.use_ssl?'SSL (465)':(d.use_tls?'STARTTLS (587)':'无');
+      _smtpLock=false; }
+  }
+}
+async function autoDetect(){
+  if(getPresetId()!=='auto') return;
+  const email=$('smtp-email').value.trim();
+  if(!email) return;
+  const d=await pywebview.api.detect_smtp(email);
+  if(d){ _smtpLock=true;
+    $('smtp-host').value=d.host; $('smtp-port').value=d.port;
+    $('smtp-enc').value=d.use_ssl?'SSL (465)':(d.use_tls?'STARTTLS (587)':'无');
+    appendLog('已按域名自动匹配 SMTP：'+d.label); _smtpLock=false; }
+}
+function onManualSmtp(){ if(!_smtpLock&&getPresetId()!=='custom') setPresetId('custom'); }
+async function openPwdHelp(){
+  const r=await pywebview.api.get_password_help_url($('smtp-email').value.trim(), getPresetId());
+  if(r&&r.url){ pywebview.api.open_url(r.url); appendLog('已打开授权码教程：'+r.provider); }
+}
+
+// ── Excel ─────────────────────────────────────────────────────────────────────
+async function chooseExcel(){
+  const r=await pywebview.api.choose_excel();
+  if(!r||!r.path) return;
+  if(r.error){ await err('读取失败：'+r.error); return; }
+  applyExcel(r);
+}
+function applyExcel(r){
+  setExcelPath(r.path);
+  $('sheet-lbl').textContent=r.sheet;
+  _rowCount=r.rows; $('pending').textContent=r.rows+' 条';
+  _headers=r.headers||[];
+  const fl=$('fields-list'); fl.innerHTML='';
+  _headers.forEach(h=>{ const o=document.createElement('option');o.value=h;o.textContent=h;fl.appendChild(o);});
+  // email col
+  const es=$('email-col'); es.innerHTML='';
+  _headers.forEach(h=>{const o=document.createElement('option');o.value=h;o.textContent=h;es.appendChild(o);});
+  if(r.email_col) es.value=r.email_col;
+  // cc col
+  const cs=$('cc-col'); cs.innerHTML='<option value="">(无)</option>';
+  _headers.forEach(h=>{const o=document.createElement('option');o.value=h;o.textContent=h;cs.appendChild(o);});
+  if(r.cc_col) cs.value=r.cc_col;
+  buildPhPanel();
+  appendLog('已加载 Excel：'+r.path.split(/[\\/]/).pop()+'（'+r.sheet+'，'+r.rows+' 行）');
+  scheduleSync();
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+async function addAttach(){
+  const ps=await pywebview.api.add_attachments();
+  if(!ps||!ps.length) return;
+  const ex=new Set(_attaches);
+  ps.forEach(p=>{ if(!ex.has(p)) _attaches.push(p); });
+  renderAttaches();
+}
+function renderAttaches(){
+  const d=$('attach-list'); d.innerHTML='';
+  _attaches.forEach((p,i)=>{
+    const item=document.createElement('div');
+    item.className='ai'+(_selAttach===i?' sel':'');
+    item.dataset.i=i;
+    const nm=p.split(/[\\/]/).pop();
+    item.innerHTML=`<span title="${p}">${nm}</span>`;
+    item.onclick=()=>{_selAttach=i;renderAttaches();};
+    d.appendChild(item);
+  });
+}
+function rmAttach(){
+  if(_selAttach<0||_selAttach>=_attaches.length) return;
+  _attaches.splice(_selAttach,1);
+  _selAttach=Math.min(_selAttach,_attaches.length-1);
+  renderAttaches();
+}
+function mvAttach(dir){
+  const i=_selAttach,j=i+dir;
+  if(j<0||j>=_attaches.length) return;
+  [_attaches[i],_attaches[j]]=[_attaches[j],_attaches[i]];
+  _selAttach=j; renderAttaches();
+}
+
+// ── Template ───────────────────────────────────────────────────────────────────
+async function loadTpl(){
+  const r=await pywebview.api.load_template_file();
+  if(!r||!r.html) return;
+  if(r.error){ await err('载入失败：'+r.error); return; }
+  $('editor').innerHTML=r.html; _tplPath=r.path;
+  appendLog('已载入模板：'+r.path.split(/[\\/]/).pop());
+}
+async function saveTpl(){
+  const html=$('editor').innerHTML;
+  const p=await pywebview.api.save_template_file(html,_tplPath);
+  if(p){ _tplPath=p; appendLog('模板已保存：'+p); }
+}
+async function clearTpl(){
+  if(!await confirm2('确认清空邮件模板内容？')) return;
+  $('editor').innerHTML=''; _tplPath='';
+}
+
+// ── Toolbar ────────────────────────────────────────────────────────────────────
+function toggleTbar(){
+  const tb=$('toolbar'),a=$('tbar-arrow');
+  const vis=tb.style.display==='flex';
+  tb.style.display=vis?'none':'flex';
+  a.textContent=vis?'▶':'▼';
+}
+function fmt(cmd,val){
+  $('editor').focus();
+  document.execCommand(cmd,false,val||null);
+  updTbState();
+}
+function updTbState(){
+  ['bold','italic','underline'].forEach(c=>{
+    const b=$('btn-'+c[0]);
+    if(b) b.classList.toggle('on',document.queryCommandState(c));
+  });
+}
+function applyFont(){ const v=$('sel-font').value;if(v)fmt('fontName',v);$('editor').focus();}
+function applySize(){ const v=$('sel-size').value;if(v)fmt('fontSize',v);$('editor').focus();}
+
+function pickColor(mode){
+  _colorMode=mode; saveRange();
+  $('color-inp').value=mode==='f'?'#000000':'#ffff00';
+  $('color-inp').click();
+}
+function applyColor(){
+  restoreRange();
+  const c=$('color-inp').value;
+  if(_colorMode==='f'){fmt('foreColor',c);$('sw-f').style.background=c;}
+  else{fmt('hiliteColor',c);$('sw-b').style.background=c;}
+}
+function saveRange(){
+  const s=window.getSelection();
+  if(s.rangeCount) _savedRange=s.getRangeAt(0).cloneRange();
+}
+function restoreRange(){
+  if(!_savedRange) return;
+  const s=window.getSelection();
+  s.removeAllRanges(); s.addRange(_savedRange);
+  $('editor').focus();
+}
+function insertImg(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    $('editor').focus();
+    const img=document.createElement('img');
+    img.src=e.target.result; img.style.width='200px';
+    const sel=window.getSelection();
+    if(sel.rangeCount){
+      const rng=sel.getRangeAt(0);
+      rng.deleteContents(); rng.insertNode(img);
+      rng.setStartAfter(img); sel.removeAllRanges(); sel.addRange(rng);
+    } else $('editor').appendChild(img);
+  };
+  r.readAsDataURL(f); input.value='';
+}
+function insertLink(){
+  const u=prompt('请输入链接地址：','https://');
+  if(u) fmt('createLink',u);
+}
+
+// ── Placeholder panel ──────────────────────────────────────────────────────────
+function insertPH(col, target){
+  const ph='{{'+col+'}}';
+  const t = target || _phTarget;
+  if(t==='subject'){
+    const el=$('subject');
+    const start=_subjectSel.start;
+    const end=_subjectSel.end;
+    const v=el.value;
+    el.value=v.slice(0,start)+ph+v.slice(end);
+    const pos=start+ph.length;
+    _subjectSel.start=pos;
+    _subjectSel.end=pos;
+    _phTarget='subject';
+    el.focus();
+    try{ el.setSelectionRange(pos,pos); }catch(e){}
+  } else {
+    $('editor').focus();
+    document.execCommand('insertText',false,ph);
+  }
+  scheduleSync();
+}
+
+function buildPhPanelItems(container, onPick){
+  container.innerHTML='';
+  if(!_headers.length){
+    container.innerHTML='<div class="phi" style="color:#999">暂无列名</div>';
+    return;
+  }
+  _headers.forEach(col=>{
+    const d=document.createElement('div');
+    d.className='phi';
+    d.textContent='{{'+col+'}}';
+    d.onmousedown=e=>e.preventDefault();
+    d.onclick=()=>{ onPick(col); container.style.display='none'; };
+    container.appendChild(d);
+  });
+}
+
+function buildPhPanel(){
+  buildPhPanelItems($('ph-panel'), col=>{
+    insertPH(col, 'editor');
+  });
+}
+
+function buildSubjectPhPanel(){
+  buildPhPanelItems($('subject-ph-panel'), col=>{
+    captureSubjectSelection();
+    insertPH(col, 'subject');
+  });
+}
+
+function togglePhPanel(){
+  const p=$('ph-panel');
+  p.style.display=p.style.display==='block'?'none':'block';
+  $('subject-ph-panel').style.display='none';
+}
+
+function toggleSubjectPhPanel(ev){
+  if(ev){
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  captureSubjectSelection();
+  _phTarget='subject';
+  buildSubjectPhPanel();
+  const p=$('subject-ph-panel');
+  p.style.display=p.style.display==='block'?'none':'block';
+  $('ph-panel').style.display='none';
+}
+
+document.addEventListener('click',e=>{
+  const p=$('ph-panel'),b=$('btn-ph');
+  const sp=$('subject-ph-panel'),sb=$('btn-subject-ph');
+  if(p&&b&&!p.contains(e.target)&&e.target!==b) p.style.display='none';
+  if(sp&&sb&&!sp.contains(e.target)&&e.target!==sb) sp.style.display='none';
+});
+
+// Double-click fields → insert into subject or editor
+function insertFieldPH(){
+  const fl=$('fields-list'), col=fl.value; if(!col) return;
+  const active=document.activeElement;
+  if(active&&active.id==='editor') insertPH(col,'editor');
+  else if(active&&active.id==='subject') insertPH(col,'subject');
+  else if(_phTarget==='subject') insertPH(col,'subject');
+  else insertPH(col,'editor');
+  if(_phTarget==='subject') $('subject').focus();
+}
+
+// ── Image resize ───────────────────────────────────────────────────────────────
+function clearRH(){
+  _rHandles.forEach(h=>h.remove()); _rHandles=[];
+  if(_selImg){ _selImg.classList.remove('sel'); _selImg=null; }
+}
+function selImg(img){
+  clearRH(); _selImg=img; img.classList.add('sel');
+  ['nw','n','ne','e','se','s','sw','w'].forEach(pos=>{
+    const h=document.createElement('div');
+    h.className='rh'; h.dataset.p=pos;
+    document.body.appendChild(h);
+    _rHandles.push(h);
+    posRH(h,img,pos);
+    h.addEventListener('mousedown',startResize);
+  });
+}
+function posRH(h,img,pos){
+  const r=img.getBoundingClientRect(),sz=8;
+  let x,y;
+  if(pos.includes('n')) y=r.top-sz/2;
+  else if(pos.includes('s')) y=r.bottom-sz/2;
+  else y=r.top+r.height/2-sz/2;
+  if(pos.includes('w')) x=r.left-sz/2;
+  else if(pos.includes('e')) x=r.right-sz/2;
+  else x=r.left+r.width/2-sz/2;
+  h.style.left=(x+window.scrollX)+'px';
+  h.style.top=(y+window.scrollY)+'px';
+}
+function updRH(img){ _rHandles.forEach(h=>posRH(h,img,h.dataset.p)); }
+function startResize(e){
+  e.preventDefault(); e.stopPropagation();
+  const pos=e.target.dataset.p, img=_selImg; if(!img) return;
+  const sx=e.clientX,sy=e.clientY;
+  const sw=img.offsetWidth||img.naturalWidth||100;
+  const sh=img.offsetHeight||img.naturalHeight||100;
+  const asp=sw/(sh||1);
+  function mv(e){
+    const dx=e.clientX-sx,dy=e.clientY-sy;
+    let nw=sw;
+    if(pos.includes('e')) nw=Math.max(30,sw+dx);
+    else if(pos.includes('w')) nw=Math.max(30,sw-dx);
+    else if(pos==='s') nw=Math.max(30,sh+dy)*asp;
+    else if(pos==='n') nw=Math.max(30,sh-dy)*asp;
+    img.style.width=Math.round(nw)+'px'; img.style.height='auto';
+    updRH(img);
+  }
+  function up(){ document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up); }
+  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+}
+
+// Editor events
+const editor=$('editor');
+editor.addEventListener('click',e=>{
+  if(e.target.tagName==='IMG'){ selImg(e.target); e.preventDefault(); }
+  else clearRH();
+  updTbState();
+});
+editor.addEventListener('keyup',updTbState);
+editor.addEventListener('mouseup',e=>{ if(e.target.tagName!=='IMG') updTbState(); });
+editor.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ document.execCommand('insertParagraph',false,null);e.preventDefault(); }
+  if((e.key==='Delete'||e.key==='Backspace')&&_selImg){ _selImg.remove();clearRH();e.preventDefault(); }
+});
+editor.addEventListener('paste',e=>{
+  e.preventDefault();
+  const h=e.clipboardData.getData('text/html');
+  if(h) document.execCommand('insertHTML',false,h);
+  else document.execCommand('insertText',false,e.clipboardData.getData('text/plain')||'');
+});
+$('editor-area').addEventListener('scroll',()=>{ if(_selImg&&_rHandles.length) updRH(_selImg); });
+document.addEventListener('scroll',()=>{ if(_selImg&&_rHandles.length) updRH(_selImg); },true);
+
+// ── Log ────────────────────────────────────────────────────────────────────────
+function toggleLog(){
+  const b=$('log-body'),a=$('log-arr'),l=$('log-lbl');
+  const vis=b.style.display==='block';
+  b.style.display=vis?'none':'block';
+  a.textContent=vis?'▶':'▼';
+  l.textContent=vis?'展开日志':'折叠日志';
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function escHtml(s){
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderPreviewContent(p){
+  const cc = (p.cc_emails&&p.cc_emails.length) ? p.cc_emails.join(', ') : '(无)';
+  const attaches = (p.attachments&&p.attachments.length)
+    ? p.attachments.map(a=>'<li>'+escHtml(a)+'</li>').join('')
+    : '<li><em>无</em></li>';
+  return {
+    title: `邮件预览 — 第 ${p.row_index} / ${p.total_rows} 行`,
+    meta: `<table class="preview-meta">
+      <tr><td>收件人</td><td>${escHtml(p.to_email||'(空)')}</td></tr>
+      <tr><td>抄送</td><td>${escHtml(cc)}</td></tr>
+      <tr><td>主题</td><td><strong>${escHtml(p.subject||'(空)')}</strong></td></tr>
+      <tr><td>附件</td><td><ul style="margin:0;padding-left:18px">${attaches}</ul></td></tr>
+    </table>`,
+    body: p.body || '',
+  };
+}
+
+function updatePreviewDialog(p){
+  if(!_previewDlg) return;
+  const content = renderPreviewContent(p);
+  const box = _previewDlg.querySelector('.preview-box');
+  if(box){
+    box.querySelector('#preview-title').textContent = content.title;
+    box.querySelector('#preview-meta').innerHTML = content.meta;
+    box.querySelector('#preview-body-html').innerHTML = content.body;
+  }
+  _previewDlg.querySelector('#preview-prev').disabled = p.row_index <= 1;
+  _previewDlg.querySelector('#preview-next').disabled = p.row_index >= p.total_rows;
+  _previewDlg._row = p.row_index;
+  _previewDlg._total = p.total_rows;
+}
+
+async function previewNavigate(dir){
+  if(!_previewDlg) return;
+  const next = (_previewDlg._row || 1) + dir;
+  if(next < 1 || next > (_previewDlg._total || 1)) return;
+  const data = Object.assign({}, buildData(), {row_index: next});
+  const r = await pywebview.api.preview_email(data);
+  if(r&&r.error){ await err('预览失败：'+r.error); return; }
+  _previewDlg._data = data;
+  updatePreviewDialog(r);
+}
+
+function showPreviewModal(p, data){
+  if(_previewDlg) _previewDlg.remove();
+  const content = renderPreviewContent(p);
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="preview-shell">
+    <button class="preview-arrow" id="preview-prev" title="上一行">&#8249;</button>
+    <div class="preview-box">
+      <div class="preview-hd">
+        <h3 id="preview-title">${content.title}</h3>
+        <div id="preview-meta">${content.meta}</div>
+      </div>
+      <div class="preview-body-wrap"><div class="preview-body" id="preview-body-html"></div></div>
+      <div class="preview-ft"><button class="btn primary" id="preview-close">关闭</button></div>
+    </div>
+    <button class="preview-arrow" id="preview-next" title="下一行">&#8250;</button>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#preview-body-html').innerHTML = content.body;
+  bg._data = data;
+  bg._row = p.row_index;
+  bg._total = p.total_rows;
+  bg.querySelector('#preview-prev').disabled = p.row_index <= 1;
+  bg.querySelector('#preview-next').disabled = p.row_index >= p.total_rows;
+  bg.querySelector('#preview-prev').onclick = ()=>previewNavigate(-1);
+  bg.querySelector('#preview-next').onclick = ()=>previewNavigate(1);
+  bg.querySelector('#preview-close').onclick = ()=>{ bg.remove(); _previewDlg=null; };
+  bg.addEventListener('click', e=>{ if(e.target===bg){ bg.remove(); _previewDlg=null; }});
+  _previewDlg = bg;
+}
+
+async function doPreview(){
+  if(!getExcelPath()){ await warn('请先选择包含数据的 Excel 文件。'); return; }
+  if(!$('editor').innerHTML.trim()){ await warn('邮件模板不能为空。'); return; }
+  const data = buildData();
+  data.row_index = 1;
+  const r=await pywebview.api.preview_email(data);
+  if(r&&r.error){ await err('预览失败：'+r.error); return; }
+  if(r&&r.ok) showPreviewModal(r, data);
+}
+
+// ── Validate ──────────────────────────────────────────────────────────────────
+async function doValidate(){
+  if(!getExcelPath()){ await warn('请先选择 Excel 文件。'); return false; }
+  const r=await pywebview.api.validate_send(buildData());
+  if(!r) return false;
+  r.errors.forEach(e=>appendLog('[校验错误] '+e));
+  r.warnings.forEach(w=>appendLog('[校验警告] '+w));
+  if(r.errors.length){ await err('校验失败：\n'+r.errors.join('\n')); return false; }
+  let msg='校验通过。';
+  if(r.warnings.length) msg+='\n\n警告：\n'+r.warnings.join('\n');
+  await info(msg); return true;
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function doSend(){
+  if(!getExcelPath()){ await warn('请先选择 Excel 文件。'); return; }
+  const vr=await pywebview.api.validate_send(buildData());
+  if(!vr) return;
+  vr.errors.forEach(e=>appendLog('[校验] '+e));
+  vr.warnings.forEach(w=>appendLog('[校验] '+w));
+  if(vr.errors.length){ await err('校验失败：\n'+vr.errors.join('\n')); return; }
+  if(!await confirm2('将向 '+_rowCount+' 位收件人发送邮件，是否继续？')) return;
+  setSending(true); $('prog-bar').style.width='0%'; $('prog-txt').textContent='0 / '+_rowCount;
+  appendLog('开始发送...');
+  const sr=await pywebview.api.start_send(buildData());
+  if(sr&&sr.error){ await err('发送失败：'+sr.error); setSending(false); }
+}
+async function doCancel(){ await pywebview.api.cancel_send(); appendLog('正在请求取消发送...'); }
+function buildData(){
+  return {
+    template:$('editor').innerHTML,
+    subject:$('subject').value,
+    attachment_paths:_attaches.slice(),
+    email_column:$('email-col').value||null,
+    cc_column:$('cc-col').value||null,
+    smtp_host:$('smtp-host').value.trim(),
+    smtp_port:parseInt($('smtp-port').value)||587,
+    smtp_user:$('smtp-email').value.trim(),
+    smtp_email:$('smtp-email').value.trim(),
+    smtp_password:$('smtp-pwd').value,
+    use_tls:$('smtp-enc').value==='STARTTLS (587)',
+    use_ssl:$('smtp-enc').value==='SSL (465)',
+    send_interval:parseFloat($('smtp-iv').value)||1.0,
+    total_rows:_rowCount,
+  };
+}
+function setSending(s){
+  $('btn-send').disabled=s; $('btn-validate').disabled=s;
+  $('btn-preview').disabled=s; $('btn-cancel').disabled=!s;
+}
+
+// Called from Python
+function onProgress(cur,tot,result){
+  $('prog-bar').style.width=(cur/tot*100)+'%';
+  $('prog-txt').textContent=cur+' / '+tot;
+  appendLog(result.success?
+    '发送成功：第'+result.row_index+'行 → '+result.recipient:
+    '发送失败：第'+result.row_index+'行 → '+result.recipient+'：'+result.error);
+}
+function onSendFinished(s){
+  setSending(false);
+  appendLog('发送完成：成功'+s.success_count+' 失败'+s.failure_count);
+  let msg='发送完成\n\n成功：'+s.success_count+'\n失败：'+s.failure_count+'\n跳过：'+s.skipped_count+'\n合计：'+s.total;
+  if(s.failed_path) msg+='\n\n失败记录已导出至：\n'+s.failed_path;
+  setTimeout(()=>info(msg),0);
+}
+function onSendFailed(msg){
+  setSending(false); appendLog('发送中止：'+msg);
+  setTimeout(()=>err('发送失败：'+msg),0);
+}
+</script>
+</body>
+</html>
